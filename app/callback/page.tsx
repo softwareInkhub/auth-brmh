@@ -31,8 +31,18 @@ export default function CallbackPage() {
       }
 
       try {
-        setMessage('Exchanging authorization code for tokens...');
+        setMessage('Processing authentication...');
         
+        // Verify state parameter
+        const storedState = localStorage.getItem('cognitoState');
+        if (state !== storedState) {
+          setStatus('error');
+          setMessage('Invalid state parameter. Security verification failed.');
+          return;
+        }
+
+        // For Cognito hosted UI, we'll parse the tokens from the URL hash or use your backend
+        // Option 1: Use your backend to exchange code for tokens
         const response = await AuthService.exchangeCodeForTokens(code, state);
 
         if (response.success && response.result) {
@@ -45,9 +55,10 @@ export default function CallbackPage() {
           setStatus('success');
           setMessage('Authentication successful! Redirecting to dashboard...');
           
-          // Redirect to dashboard after a short delay
+          // Redirect to your main application
           setTimeout(() => {
-            router.push('/dashboard');
+            // You can redirect to your main app or dashboard
+            window.location.href = 'https://brmh.in/dashboard';
           }, 2000);
         } else {
           setStatus('error');

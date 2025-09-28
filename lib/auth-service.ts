@@ -1,5 +1,15 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://brmh.in';
 
+// Cognito Configuration - Replace with your actual values
+const COGNITO_CONFIG = {
+  userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || 'YOUR_USER_POOL_ID',
+  clientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || 'YOUR_CLIENT_ID',
+  domain: process.env.NEXT_PUBLIC_COGNITO_DOMAIN || 'auth.brmh.in',
+  region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-1',
+  redirectUri: process.env.NEXT_PUBLIC_REDIRECT_URI || 'https://auth.brmh.in/callback',
+  logoutUri: process.env.NEXT_PUBLIC_LOGOUT_URI || 'https://auth.brmh.in/'
+};
+
 export interface AuthResponse {
   success: boolean;
   result?: {
@@ -103,21 +113,48 @@ export class AuthService {
 
   static async initiateOAuthLogin(provider: string): Promise<void> {
     try {
-      const { authUrl, state, error } = await this.getOAuthUrl();
+      // For Cognito hosted UI, redirect directly to Cognito
+      const cognitoAuthUrl = this.getCognitoHostedUIUrl(provider);
       
-      if (error || !authUrl) {
-        throw new Error(error || 'Failed to initiate OAuth login');
-      }
-
-      // Store state for callback verification
       if (typeof window !== 'undefined') {
-        localStorage.setItem('oauthState', state || '');
-        window.location.href = authUrl;
+        window.location.href = cognitoAuthUrl;
       }
     } catch (error) {
       console.error('OAuth initiation error:', error);
       throw error;
     }
+  }
+
+  static getCognitoHostedUIUrl(provider?: string): string {
+    const state = this.generateRandomString(32);
+    const nonce = this.generateRandomString(32);
+    
+    // Store state and nonce for verification
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cognitoState', state);
+      localStorage.setItem('cognitoNonce', nonce);
+    }
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: COGNITO_CONFIG.clientId,
+      redirect_uri: COGNITO_CONFIG.redirectUri,
+      scope: 'openid email profile',
+      state: state,
+      nonce: nonce,
+      ...(provider && { identity_provider: provider })
+    });
+
+    return `https://${COGNITO_CONFIG.domain}/oauth2/authorize?${params.toString()}`;
+  }
+
+  static generateRandomString(length: number): string {
+    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    return result;
   }
 
   static storeTokens(tokens: {
