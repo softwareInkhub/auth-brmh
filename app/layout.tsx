@@ -9,8 +9,12 @@ export const metadata: Metadata = {
   description: 'Secure authentication portal for BRMH',
   keywords: ['authentication', 'brmh', 'security', 'login', 'signup'],
   authors: [{ name: 'BRMH Team' }],
-  viewport: 'width=device-width, initial-scale=1',
   robots: 'noindex, nofollow',
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({

@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthService } from '@/lib/auth-service';
 import LoadingSpinner from '@/components/ui/loading-spinner';
 
-export default function CallbackPage() {
+function CallbackContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const router = useRouter();
@@ -124,5 +124,19 @@ export default function CallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass-effect rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
+          <LoadingSpinner size="lg" message="Loading..." />
+        </div>
+      </div>
+    }>
+      <CallbackContent />
+    </Suspense>
   );
 }
