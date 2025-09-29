@@ -35,10 +35,15 @@ export class AuthService {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ username: email, password }),
       });
 
-      return await response.json();
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data?.error || 'Login failed' };
+      }
+      return data;
     } catch (error) {
       return {
         success: false,
