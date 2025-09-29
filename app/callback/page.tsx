@@ -45,21 +45,14 @@ function CallbackContent() {
         // Option 1: Use your backend to exchange code for tokens
         const response = await AuthService.exchangeCodeForTokens(code, state);
 
-        if (response.success && response.result) {
-          AuthService.storeTokens({
-            accessToken: response.result.accessToken?.jwtToken,
-            idToken: response.result.idToken?.jwtToken,
-            refreshToken: response.result.refreshToken?.token,
-          });
-          
+        if (response.success) {
           setStatus('success');
-          setMessage('Authentication successful! Redirecting to dashboard...');
-          
-          // Redirect to your main application
-          setTimeout(() => {
-            // You can redirect to your main app or dashboard
-            window.location.href = 'https://brmh.in/dashboard';
-          }, 2000);
+          setMessage('Authentication successful! Redirecting...');
+
+          // Redirect to next param (if passed through the flow), else to app
+          const nextParam = new URLSearchParams(window.location.search).get('next');
+          const target = nextParam || 'https://app.brmh.in';
+          setTimeout(() => { window.location.href = target; }, 600);
         } else {
           setStatus('error');
           setMessage(response.error || 'Authentication failed');
