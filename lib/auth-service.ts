@@ -146,7 +146,10 @@ export class AuthService {
       ...(provider && { identity_provider: provider })
     });
 
-    return `https://${COGNITO_CONFIG.domain}/oauth2/authorize?${params.toString()}`;
+    // Normalize domain: allow either 'login.brmh.in' or full 'https://login.brmh.in'
+    const rawDomain = (COGNITO_CONFIG.domain || '').replace(/\/$/, '');
+    const base = /^https?:\/\//i.test(rawDomain) ? rawDomain : `https://${rawDomain}`;
+    return `${base}/oauth2/authorize?${params.toString()}`;
   }
 
   static generateRandomString(length: number): string {
