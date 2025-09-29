@@ -1,14 +1,23 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 
 export const loginSchema = z.object({
   email: z.string()
-    .min(1, 'Email or phone number is required')
+    .min(1, 'Email, username, or phone number is required')
     .refine((value) => {
-      // Check if it's a valid email or phone number
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return false;
+      }
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-      return emailRegex.test(value) || phoneRegex.test(value.replace(/[\s\-\(\)]/g, ''));
-    }, 'Please enter a valid email address or phone number'),
+      const phoneDigits = trimmed.replace(/[\s\-\(\)]/g, '');
+      const phoneRegex = /^[+]?[1-9][\d]{0,15}$/;
+      const usernameRegex = /^[A-Za-z0-9._-]{3,}$/;
+      return (
+        emailRegex.test(trimmed) ||
+        phoneRegex.test(phoneDigits) ||
+        usernameRegex.test(trimmed)
+      );
+    }, 'Please enter a valid email address, username, or phone number'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -73,3 +82,4 @@ export function getPasswordStrength(password: string): PasswordStrength {
 
   return { score, feedback };
 }
+

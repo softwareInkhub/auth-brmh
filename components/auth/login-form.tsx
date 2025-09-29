@@ -178,18 +178,18 @@ export default function LoginForm() {
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 flex-1">
                   <div className="group">
                     <label htmlFor="email" className="block text-blue-100/90 font-medium mb-2 text-sm">
-                      Email or Phone Number
+                      Email, Username, or Phone Number
                     </label>
                     <input
                       {...register('email')}
                       type="text"
                       id="email"
-                      autoComplete="email"
+                      autoComplete="username"
                       className={cn(
                         'input-field',
                         errors.email && 'input-field-error'
                       )}
-                      placeholder="Enter your email or phone number"
+                      placeholder="Enter your email, username, or phone number"
                     />
                     {errors.email && <p className="mt-2 text-sm text-red-400">{errors.email.message}</p>}
                   </div>
@@ -343,3 +343,5 @@ export default function LoginForm() {
     </div>
   );
 }
+
+
