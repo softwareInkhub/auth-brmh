@@ -39,13 +39,18 @@ export default function LoginForm() {
           refreshToken: response.result.refreshToken?.token,
         });
         
-        // Redirect to dashboard or intended destination
-        router.push('/dashboard');
+        // Get redirect URL from query params or default to app.brmh.in
+        const searchParams = new URLSearchParams(window.location.search);
+        const nextUrl = searchParams.get('next') || 'https://app.brmh.in/';
+        
+        // Redirect to the target URL (cookies will be shared across subdomains)
+        console.log('[Auth] Login successful, redirecting to:', nextUrl);
+        window.location.href = nextUrl;
       } else {
         setError(response.error || 'Login failed');
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setIsSubmitting(false);
     }
