@@ -119,11 +119,28 @@ export class AuthService {
 
   static async initiateOAuthLogin(provider: string): Promise<void> {
     try {
-      // For Cognito hosted UI, redirect directly to Cognito
-      const cognitoAuthUrl = this.getCognitoHostedUIUrl(provider);
+      // Use backend OAuth URL generation with PKCE for better security
+      const response = await fetch(`${API_BASE_URL}/auth/oauth-url?provider=${provider}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      const data: OAuthResponse = await response.json();
       
-      if (typeof window !== 'undefined') {
-        window.location.href = cognitoAuthUrl;
+      if (data.authUrl && data.state) {
+        // Store state for verification during callback
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('oauthState', data.state);
+          localStorage.setItem('oauthProvider', provider);
+          
+          // Redirect to OAuth URL
+          window.location.href = data.authUrl;
+        }
+      } else {
+        throw new Error(data.error || 'Failed to generate OAuth URL');
       }
     } catch (error) {
       console.error('OAuth initiation error:', error);

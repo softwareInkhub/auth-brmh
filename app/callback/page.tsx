@@ -33,21 +33,43 @@ function CallbackContent() {
       try {
         setMessage('Processing authentication...');
         
-        // Verify state parameter
-        const storedState = localStorage.getItem('cognitoState');
+        // Verify state parameter (check both oauthState and cognitoState for backwards compatibility)
+        const storedState = localStorage.getItem('oauthState') || localStorage.getItem('cognitoState');
         if (state !== storedState) {
           setStatus('error');
           setMessage('Invalid state parameter. Security verification failed.');
           return;
         }
 
-        // For Cognito hosted UI, we'll parse the tokens from the URL hash or use your backend
-        // Option 1: Use your backend to exchange code for tokens
+        // Get the provider that initiated the OAuth flow
+        const provider = localStorage.getItem('oauthProvider');
+        console.log('[OAuth Callback] Processing authentication for provider:', provider || 'default');
+
+        // Exchange code for tokens using backend
         const response = await AuthService.exchangeCodeForTokens(code, state);
 
         if (response.success) {
+          // Store tokens from the response
+          if (response.result) {
+            const tokens = {
+              accessToken: response.result.accessToken?.jwtToken,
+              idToken: response.result.idToken?.jwtToken,
+              refreshToken: response.result.refreshToken?.token,
+            };
+            
+            AuthService.storeTokens(tokens);
+          }
+
+          // Clean up OAuth state
+          localStorage.removeItem('oauthState');
+          localStorage.removeItem('oauthProvider');
+          localStorage.removeItem('cognitoState');
+          localStorage.removeItem('cognitoNonce');
+
           setStatus('success');
           setMessage('Authentication successful! Redirecting...');
+
+          console.log('[OAuth Callback] Authentication successful, redirecting...');
 
           // Redirect to next param (if passed through the flow), else to app
           const nextParam = new URLSearchParams(window.location.search).get('next');
@@ -58,6 +80,7 @@ function CallbackContent() {
           setMessage(response.error || 'Authentication failed');
         }
       } catch (error) {
+        console.error('[OAuth Callback] Error:', error);
         setStatus('error');
         setMessage('Network error during authentication');
       }
