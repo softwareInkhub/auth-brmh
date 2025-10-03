@@ -41,7 +41,7 @@ export default function LoginForm() {
         
         // Get redirect URL from query params or default to app.brmh.in
         const searchParams = new URLSearchParams(window.location.search);
-        const nextUrl = searchParams.get('next') || 'https://app.brmh.in/';
+        const nextUrl = searchParams.get('next') || 'https://app.brmh.in/' || 'https://projectmngnt.vercel.app'|| 'https://projectmanagement.brmh.in';
         
         // Redirect to the target URL (cookies will be shared across subdomains)
         console.log('[Auth] Login successful, redirecting to:', nextUrl);

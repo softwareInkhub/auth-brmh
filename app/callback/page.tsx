@@ -73,7 +73,8 @@ function CallbackContent() {
 
           // Redirect to next param (if passed through the flow), else to app
           const nextParam = new URLSearchParams(window.location.search).get('next');
-          const target = nextParam || 'https://app.brmh.in';
+          const target = nextParam || 'https://app.brmh.in' || 'https://projectmngnt.vercel.app'|| 'https://projectmanagement.brmh.in';
+
           setTimeout(() => { window.location.href = target; }, 600);
         } else {
           setStatus('error');
