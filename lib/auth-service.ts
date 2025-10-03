@@ -189,24 +189,57 @@ export class AuthService {
     refreshToken?: string;
   }): void {
     if (typeof window !== 'undefined') {
+      // Store tokens with consistent naming for cross-app compatibility
       if (tokens.accessToken) {
         localStorage.setItem('accessToken', tokens.accessToken);
+        localStorage.setItem('access_token', tokens.accessToken); // For projectmngnt compatibility
       }
       if (tokens.idToken) {
         localStorage.setItem('idToken', tokens.idToken);
+        localStorage.setItem('id_token', tokens.idToken); // For projectmngnt compatibility
       }
       if (tokens.refreshToken) {
         localStorage.setItem('refreshToken', tokens.refreshToken);
+        localStorage.setItem('refresh_token', tokens.refreshToken); // For projectmngnt compatibility
+      }
+      
+      // Also extract user info from ID token and store it
+      if (tokens.idToken) {
+        try {
+          const payload = JSON.parse(atob(tokens.idToken.split('.')[1]));
+          if (payload.sub) localStorage.setItem('user_id', payload.sub);
+          if (payload.email) localStorage.setItem('user_email', payload.email);
+          if (payload.name || payload.given_name) {
+            localStorage.setItem('user_name', payload.name || payload.given_name);
+          }
+          console.log('[AuthService] Stored user info from ID token:', {
+            userId: payload.sub,
+            email: payload.email,
+            name: payload.name || payload.given_name
+          });
+        } catch (error) {
+          console.error('[AuthService] Error extracting user info from ID token:', error);
+        }
       }
     }
   }
 
   static clearTokens(): void {
     if (typeof window !== 'undefined') {
+      // Clear all token formats
       localStorage.removeItem('accessToken');
       localStorage.removeItem('idToken');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('id_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user_id');
+      localStorage.removeItem('user_email');
+      localStorage.removeItem('user_name');
       localStorage.removeItem('oauthState');
+      localStorage.removeItem('oauthProvider');
+      localStorage.removeItem('cognitoState');
+      localStorage.removeItem('cognitoNonce');
     }
   }
 
