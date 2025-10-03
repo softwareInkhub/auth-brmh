@@ -203,6 +203,21 @@ export class AuthService {
         localStorage.setItem('refresh_token', tokens.refreshToken); // For projectmngnt compatibility
       }
       
+      // Also set cookies for cross-domain SSO (client-side fallback)
+      const domain = '.brmh.in';
+      const secure = window.location.protocol === 'https:';
+      const sameSite = 'None';
+      
+      if (tokens.accessToken) {
+        document.cookie = `access_token=${tokens.accessToken}; domain=${domain}; path=/; ${secure ? 'secure;' : ''} samesite=${sameSite}; max-age=3600`;
+      }
+      if (tokens.idToken) {
+        document.cookie = `id_token=${tokens.idToken}; domain=${domain}; path=/; ${secure ? 'secure;' : ''} samesite=${sameSite}; max-age=3600`;
+      }
+      if (tokens.refreshToken) {
+        document.cookie = `refresh_token=${tokens.refreshToken}; domain=${domain}; path=/; ${secure ? 'secure;' : ''} samesite=${sameSite}; max-age=2592000`;
+      }
+      
       // Also extract user info from ID token and store it
       if (tokens.idToken) {
         try {
@@ -262,5 +277,47 @@ export class AuthService {
   static isAuthenticated(): boolean {
     const tokens = this.getStoredTokens();
     return !!(tokens.accessToken && tokens.idToken);
+  }
+
+  // Check if user is authenticated via cookies (for SSO)
+  static isAuthenticatedViaCookies(): boolean {
+    if (typeof document === 'undefined') return false;
+    
+    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+      const [key, value] = cookie.trim().split('=');
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+    
+    return !!(cookies.access_token || cookies.id_token);
+  }
+
+  // Get tokens from cookies
+  static getTokensFromCookies(): {
+    accessToken?: string;
+    idToken?: string;
+    refreshToken?: string;
+  } {
+    if (typeof document === 'undefined') return {};
+    
+    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+      const [key, value] = cookie.trim().split('=');
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+    
+    return {
+      accessToken: cookies.access_token,
+      idToken: cookies.id_token,
+      refreshToken: cookies.refresh_token,
+    };
+  }
+
+  // Sync tokens from cookies to localStorage (for apps that expect localStorage)
+  static syncTokensFromCookies(): void {
+    const tokens = this.getTokensFromCookies();
+    if (tokens.accessToken || tokens.idToken || tokens.refreshToken) {
+      this.storeTokens(tokens);
+    }
   }
 }
