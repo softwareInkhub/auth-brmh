@@ -88,9 +88,9 @@ function CallbackContent() {
           if (isLocalhostTarget || isCrossDomain) {
             // Pass tokens in URL hash for cross-domain transfer
             const tokens = {
-              access_token: response.result.accessToken?.jwtToken,
-              id_token: response.result.idToken?.jwtToken,
-              refresh_token: response.result.refreshToken?.token,
+              access_token: response.result?.accessToken?.jwtToken,
+              id_token: response.result?.idToken?.jwtToken,
+              refresh_token: response.result?.refreshToken?.token,
             };
             
             const hashParams = new URLSearchParams();
