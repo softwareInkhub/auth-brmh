@@ -119,6 +119,16 @@ export class AuthService {
 
   static async initiateOAuthLogin(provider: string): Promise<void> {
     try {
+      // Store the 'next' parameter before OAuth flow so we can redirect after login
+      if (typeof window !== 'undefined') {
+        const searchParams = new URLSearchParams(window.location.search);
+        const nextUrl = searchParams.get('next');
+        if (nextUrl) {
+          localStorage.setItem('oauth_next_url', nextUrl);
+          console.log('[Auth Service] Stored next URL for OAuth flow:', nextUrl);
+        }
+      }
+      
       // Use backend OAuth URL generation with PKCE for better security
       const response = await fetch(`${API_BASE_URL}/auth/oauth-url?provider=${provider}`, {
         method: 'GET',

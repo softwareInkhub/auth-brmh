@@ -71,9 +71,37 @@ function CallbackContent() {
 
           console.log('[OAuth Callback] Authentication successful, redirecting...');
 
-          // Redirect to next param (if passed through the flow), else to app
+          // Get the 'next' URL from localStorage (stored before OAuth flow) or URL param
+          const storedNextUrl = localStorage.getItem('oauth_next_url');
           const nextParam = new URLSearchParams(window.location.search).get('next');
-          const target = nextParam || 'https://app.brmh.in' || 'https://projectmngnt.vercel.app'|| 'https://projectmanagement.brmh.in';
+          let target = storedNextUrl || nextParam || 'https://app.brmh.in';
+
+          // Clean up stored next URL
+          localStorage.removeItem('oauth_next_url');
+          
+          console.log('[OAuth Callback] Redirecting to:', target);
+          
+          // For localhost or cross-domain redirects, pass tokens in URL hash
+          const isLocalhostTarget = target.includes('localhost') || target.includes('127.0.0.1');
+          const isCrossDomain = !target.includes('brmh.in');
+          
+          if (isLocalhostTarget || isCrossDomain) {
+            // Pass tokens in URL hash for cross-domain transfer
+            const tokens = {
+              access_token: response.result.accessToken?.jwtToken,
+              id_token: response.result.idToken?.jwtToken,
+              refresh_token: response.result.refreshToken?.token,
+            };
+            
+            const hashParams = new URLSearchParams();
+            if (tokens.access_token) hashParams.set('access_token', tokens.access_token);
+            if (tokens.id_token) hashParams.set('id_token', tokens.id_token);
+            if (tokens.refresh_token) hashParams.set('refresh_token', tokens.refresh_token);
+            
+            // Append tokens to target URL as hash (more secure than query params)
+            target = `${target}#${hashParams.toString()}`;
+            console.log('[OAuth Callback] Cross-domain redirect, tokens added to URL hash');
+          }
 
           setTimeout(() => { window.location.href = target; }, 600);
         } else {

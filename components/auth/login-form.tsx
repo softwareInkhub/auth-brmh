@@ -41,11 +41,37 @@ export default function LoginForm() {
         
         // Get redirect URL from query params or default to app.brmh.in
         const searchParams = new URLSearchParams(window.location.search);
-        const nextUrl = searchParams.get('next') || 'https://app.brmh.in/' || 'https://projectmngnt.vercel.app'|| 'https://projectmanagement.brmh.in';
+        let nextUrl = searchParams.get('next') || 'https://app.brmh.in/';
         
-        // Redirect to the target URL (cookies will be shared across subdomains)
-        console.log('[Auth] Login successful, redirecting to:', nextUrl);
-        window.location.href = nextUrl;
+        // For localhost or cross-domain redirects, pass tokens in URL hash
+        const isLocalhostTarget = nextUrl.includes('localhost') || nextUrl.includes('127.0.0.1');
+        const isCrossDomain = !nextUrl.includes('brmh.in');
+        
+        if (isLocalhostTarget || isCrossDomain) {
+          // Pass tokens in URL hash for cross-domain transfer
+          const tokens = {
+            access_token: response.result.accessToken?.jwtToken,
+            id_token: response.result.idToken?.jwtToken,
+            refresh_token: response.result.refreshToken?.token,
+          };
+          
+          const hashParams = new URLSearchParams();
+          if (tokens.access_token) hashParams.set('access_token', tokens.access_token);
+          if (tokens.id_token) hashParams.set('id_token', tokens.id_token);
+          if (tokens.refresh_token) hashParams.set('refresh_token', tokens.refresh_token);
+          
+          // Append tokens to target URL as hash
+          nextUrl = `${nextUrl}#${hashParams.toString()}`;
+          console.log('[Auth] Cross-domain redirect, tokens added to URL hash');
+        }
+        
+        // Redirect to the target URL (cookies will be shared across subdomains for brmh.in domains)
+        console.log('[Auth] Login successful, redirecting to:', nextUrl.split('#')[0]); // Log without tokens
+        
+        // Small delay to ensure tokens are stored
+        setTimeout(() => {
+          window.location.href = nextUrl;
+        }, 300);
       } else {
         setError(response.error || 'Login failed');
       }
