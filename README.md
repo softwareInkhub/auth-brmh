@@ -4,7 +4,7 @@ A modern, responsive authentication interface built with Next.js 14, featuring t
 
 ## Features
 
-- **Pixel-Perfect UI**: Exact same design as the original LoginForm.tsx and RegisterForm.tsx
+- **Pixel-Perfect UI**: Exact same design as the original LoginForm.tsx and  RegisterForm.tsx
 - **Modern Stack**: Built with Next.js 14, React 18, TypeScript, and Tailwind CSS
 - **Multiple Auth Methods**: 
   - Email/Password login and registration
