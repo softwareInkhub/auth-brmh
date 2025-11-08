@@ -30,13 +30,47 @@ export interface OAuthResponse {
 export class AuthService {
   static async login(email: string, password: string): Promise<AuthResponse> {
     try {
+      // Detect if it's a phone number and format it properly
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const isEmail = emailRegex.test(email.trim());
+      let username = email;
+      
+      // If it's a phone number, format it to E.164
+      if (!isEmail) {
+        const phoneDigits = email.trim().replace(/[\s\-\(\)\.]/g, '');
+        const phoneRegex = /^[\+]?[1-9]\d{9,14}$/;
+        
+        if (phoneRegex.test(phoneDigits)) {
+          // It's a phone number, format it
+          if (!phoneDigits.startsWith('+')) {
+            if (phoneDigits.length === 10) {
+              // Assume India for 10-digit numbers
+              username = '+91' + phoneDigits;
+            } else if (phoneDigits.length === 12 && phoneDigits.startsWith('91')) {
+              // Indian number with country code but no +
+              username = '+' + phoneDigits;
+            } else if (phoneDigits.length === 11 && phoneDigits.startsWith('1')) {
+              // US/Canada format
+              username = '+' + phoneDigits;
+            } else {
+              username = '+' + phoneDigits;
+            }
+          } else {
+            username = phoneDigits;
+          }
+          console.log('[Auth] Logging in with phone number:', username);
+        }
+      } else {
+        console.log('[Auth] Logging in with email:', username);
+      }
+
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-           credentials: 'include',
-        body: JSON.stringify({ username: email, password }),
+        credentials: 'include',
+        body: JSON.stringify({ username, password }),
       });
 
       const data = await response.json();
@@ -59,16 +93,50 @@ export class AuthService {
     password: string;
   }): Promise<AuthResponse> {
     try {
+      // Detect if the email field contains a phone number
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const isEmail = emailRegex.test(data.email.trim());
+      const isPhone = !isEmail;
+      
+      // Prepare the request body
+      const requestBody: any = {
+        username: `${data.firstName} ${data.lastName}`,
+        password: data.password,
+      };
+      
+      if (isPhone) {
+        // Format phone number to E.164 format
+        let phoneNumber = data.email.trim().replace(/[\s\-\(\)\.]/g, '');
+        
+        // Add country code if missing
+        if (!phoneNumber.startsWith('+')) {
+          if (phoneNumber.length === 10) {
+            // Assume India for 10-digit numbers
+            phoneNumber = '+91' + phoneNumber;
+          } else if (phoneNumber.length === 12 && phoneNumber.startsWith('91')) {
+            // Indian number with country code but no +
+            phoneNumber = '+' + phoneNumber;
+          } else if (phoneNumber.length === 11 && phoneNumber.startsWith('1')) {
+            // US/Canada format
+            phoneNumber = '+' + phoneNumber;
+          } else {
+            phoneNumber = '+' + phoneNumber;
+          }
+        }
+        
+        requestBody.phone_number = phoneNumber;
+        console.log('[Auth] Registering with phone number:', phoneNumber);
+      } else {
+        requestBody.email = data.email;
+        console.log('[Auth] Registering with email:', data.email);
+      }
+
       const response = await fetch(`${API_BASE_URL}/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          username: `${data.firstName} ${data.lastName}`,
-          email: data.email,
-          password: data.password,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       return await response.json();

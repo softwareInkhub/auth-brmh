@@ -27,11 +27,19 @@ export const registerSchema = z.object({
   email: z.string()
     .min(1, 'Email or phone number is required')
     .refine((value) => {
-      // Check if it's a valid email or phone number
+      const trimmed = value.trim();
+      if (!trimmed) return false;
+      
+      // Check if it's a valid email
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-      return emailRegex.test(value) || phoneRegex.test(value.replace(/[\s\-\(\)]/g, ''));
-    }, 'Please enter a valid email address or phone number'),
+      if (emailRegex.test(trimmed)) return true;
+      
+      // Check if it's a valid phone number (with better validation)
+      const phoneDigits = trimmed.replace(/[\s\-\(\)\.]/g, '');
+      // Accept phone numbers with or without country code (10-15 digits)
+      const phoneRegex = /^[\+]?[1-9]\d{9,14}$/;
+      return phoneRegex.test(phoneDigits);
+    }, 'Please enter a valid email address or phone number (10-15 digits)'),
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
@@ -81,5 +89,44 @@ export function getPasswordStrength(password: string): PasswordStrength {
   }
 
   return { score, feedback };
+}
+
+// Utility functions for email/phone detection and formatting
+export function isPhoneNumber(value: string): boolean {
+  const phoneDigits = value.trim().replace(/[\s\-\(\)\.]/g, '');
+  const phoneRegex = /^[\+]?[1-9]\d{9,14}$/;
+  return phoneRegex.test(phoneDigits);
+}
+
+export function isEmail(value: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(value.trim());
+}
+
+export function formatPhoneNumber(phone: string): string {
+  // Remove all non-digit characters except leading +
+  let cleaned = phone.trim().replace(/[\s\-\(\)\.]/g, '');
+  
+  // If it doesn't start with +, check if we need to add country code
+  if (!cleaned.startsWith('+')) {
+    // If it's 10 digits, assume India and add +91
+    if (cleaned.length === 10) {
+      cleaned = '+91' + cleaned;
+    }
+    // If it's 12 digits starting with 91, add +
+    else if (cleaned.length === 12 && cleaned.startsWith('91')) {
+      cleaned = '+' + cleaned;
+    }
+    // If it's 11 digits starting with 1 (US/Canada format), add +
+    else if (cleaned.length === 11 && cleaned.startsWith('1')) {
+      cleaned = '+' + cleaned;
+    }
+    // Otherwise add + to make it E.164 format
+    else if (cleaned.length > 0) {
+      cleaned = '+' + cleaned;
+    }
+  }
+  
+  return cleaned;
 }
 

@@ -262,9 +262,14 @@ export default function RegisterForm() {
                           ? 'border-red-400/50 focus:border-red-400 focus:ring-red-400/20'
                           : 'border-slate-600/30 focus:border-indigo-400/60 focus:ring-indigo-400/20 group-hover:border-slate-500/50'
                       )}
-                      placeholder="Enter your email or phone number"
+                      placeholder="email@example.com or +919876543210"
                     />
                     {errors.email && <p className="mt-1 text-sm text-red-400">{errors.email.message}</p>}
+                    {!errors.email && (
+                      <p className="mt-1 text-xs text-blue-100/50">
+                        Phone numbers: Use 10+ digits (e.g., 9876543210 or +919876543210)
+                      </p>
+                    )}
                   </div>
 
                   <div className="group">

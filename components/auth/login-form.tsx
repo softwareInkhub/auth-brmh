@@ -220,9 +220,14 @@ export default function LoginForm() {
                         'input-field',
                         errors.email && 'input-field-error'
                       )}
-                      placeholder="Enter your email, username, or phone number"
+                      placeholder="email@example.com, username, or +919876543210"
                     />
                     {errors.email && <p className="mt-2 text-sm text-red-400">{errors.email.message}</p>}
+                    {!errors.email && (
+                      <p className="mt-1 text-xs text-blue-100/50">
+                        Phone format: 10+ digits (e.g., 9876543210 or +919876543210)
+                      </p>
+                    )}
                   </div>
 
                   <div className="group">
