@@ -25,21 +25,16 @@ export const registerSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   email: z.string()
-    .min(1, 'Email or phone number is required')
+    .min(1, 'Email is required')
+    .email('Please enter a valid email address'),
+  phoneNumber: z.string()
+    .optional()
     .refine((value) => {
-      const trimmed = value.trim();
-      if (!trimmed) return false;
-      
-      // Check if it's a valid email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (emailRegex.test(trimmed)) return true;
-      
-      // Check if it's a valid phone number (with better validation)
-      const phoneDigits = trimmed.replace(/[\s\-\(\)\.]/g, '');
-      // Accept phone numbers with or without country code (10-15 digits)
+      if (!value || value.trim() === '') return true; // Optional field
+      const phoneDigits = value.trim().replace(/[\s\-\(\)\.]/g, '');
       const phoneRegex = /^[\+]?[1-9]\d{9,14}$/;
       return phoneRegex.test(phoneDigits);
-    }, 'Please enter a valid email address or phone number (10-15 digits)'),
+    }, 'Please enter a valid phone number (10-15 digits)'),
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')

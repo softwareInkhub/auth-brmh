@@ -74,7 +74,13 @@ function CallbackContent() {
           // Get the 'next' URL from localStorage (stored before OAuth flow) or URL param
           const storedNextUrl = localStorage.getItem('oauth_next_url');
           const nextParam = new URLSearchParams(window.location.search).get('next');
-          let target = storedNextUrl || nextParam || 'https://app.brmh.in';
+          // Default to main frontend URL
+          // Priority: stored/param > env variable > default localhost:3001 (main frontend)
+          const MAIN_FRONTEND_URL = process.env.NEXT_PUBLIC_MAIN_FRONTEND_URL || 'http://localhost:3001';
+          const defaultUrl = typeof window !== 'undefined' && window.location.hostname.includes('localhost') 
+            ? `${MAIN_FRONTEND_URL}/dashboard` 
+            : 'https://app.brmh.in';
+          let target = storedNextUrl || nextParam || defaultUrl;
 
           // Clean up stored next URL
           localStorage.removeItem('oauth_next_url');

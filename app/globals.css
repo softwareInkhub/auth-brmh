@@ -125,6 +125,6 @@
   }
   
   .feature-icon {
-    @apply w-10 h-10 rounded-xl flex items-center justify-center mt-1 group-hover:scale-110 transition-transform duration-300;
+    @apply w-10 h-10 min-w-10 min-h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-1 group-hover:scale-110 transition-transform duration-300;
   }
 }

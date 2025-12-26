@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
@@ -16,6 +16,23 @@ export default function RegisterForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  
+  // Email verification state
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [emailOtp, setEmailOtp] = useState('');
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [isSendingEmailOtp, setIsSendingEmailOtp] = useState(false);
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
+  const [emailVerifyError, setEmailVerifyError] = useState<string | null>(null);
+  
+  // Phone verification state
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [isSendingPhoneOtp, setIsSendingPhoneOtp] = useState(false);
+  const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
+  const [phoneVerifyError, setPhoneVerifyError] = useState<string | null>(null);
+  
   const router = useRouter();
 
   const {
@@ -28,7 +45,34 @@ export default function RegisterForm() {
   });
 
   const password = watch('password', '');
+  const email = watch('email', '');
+  const phoneNumber = watch('phoneNumber', '');
   const passwordStrength = getPasswordStrength(password);
+
+  // Check sessionStorage on mount for verified email/phone
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const verified = sessionStorage.getItem('email_verified');
+      const verifiedEmail = sessionStorage.getItem('verified_email');
+      if (verified === 'true' && verifiedEmail) {
+        // Set verified if email matches
+        if (email && email === verifiedEmail) {
+          setEmailVerified(true);
+          setEmailOtpSent(true);
+        }
+      }
+      
+      const verifiedPhone = sessionStorage.getItem('phone_verified');
+      const verifiedPhoneNum = sessionStorage.getItem('verified_phone');
+      if (verifiedPhone === 'true' && verifiedPhoneNum) {
+        // Set verified if phone matches
+        if (phoneNumber && phoneNumber === verifiedPhoneNum) {
+          setPhoneVerified(true);
+          setPhoneOtpSent(true);
+        }
+      }
+    }
+  }, [email, phoneNumber]);
 
   const getStrengthColor = (score: number) => {
     if (score < 25) return 'bg-red-500';
@@ -44,33 +88,313 @@ export default function RegisterForm() {
     return 'Strong';
   };
 
-  const onSubmit = async (data: RegisterFormData) => {
+  // Handle email OTP send - Check if exists first, then create account with temp password and send OTP
+  const handleSendEmailOtp = async () => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setEmailVerifyError('Please enter a valid email address');
+      return;
+    }
+    
     try {
-      setIsSubmitting(true);
-      setError(null);
-      setSuccess(null);
+      setIsSendingEmailOtp(true);
+      setEmailVerifyError(null);
       
-      const response = await AuthService.register({
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        password: data.password,
+      // First, check if user already exists
+      const checkResp = await AuthService.checkUserExists(email);
+      
+      if (checkResp.exists) {
+        // User exists - try to resend OTP (this will work if user is unverified)
+        // If user is already verified, resendEmailVerification will fail and we'll show appropriate error
+        const resendResp = await AuthService.resendEmailVerification(email);
+        if (resendResp.success) {
+          setEmailOtpSent(true);
+          setSuccess('Verification code resent to your email!');
+          setTimeout(() => {
+            setSuccess(null);
+          }, 2000);
+        } else {
+          // If resend fails, user might be already verified
+          // Check if error indicates user is already confirmed
+          if (resendResp.error?.toLowerCase().includes('already') || 
+              resendResp.error?.toLowerCase().includes('confirmed') ||
+              resendResp.error?.toLowerCase().includes('verified')) {
+            setEmailVerifyError('Email already registered and verified, choose different email');
+          } else {
+            setEmailVerifyError(resendResp.error || 'Failed to resend verification code');
+          }
+        }
+        setIsSendingEmailOtp(false);
+        return;
+      }
+      
+      // User doesn't exist, create account with temporary password to send verification code
+      // Generate a temporary password (will be updated later during final registration)
+      const tempPassword = `Temp${Math.random().toString(36).slice(-12)}!@#`;
+      const tempFirstName = email.split('@')[0]; // Use email prefix as temp name
+      const tempLastName = 'User';
+      
+      // Create the account (this will send verification code automatically)
+      const registerResp = await AuthService.register({
+        firstName: tempFirstName,
+        lastName: tempLastName,
+        email: email,
+        password: tempPassword,
       });
       
-      if (response.success) {
-        setSuccess(response.message || 'Account created successfully! Please check your email for verification.');
-        // Optionally redirect after a delay
+      if (registerResp.success) {
+        // Account created, OTP should be sent automatically
+        setEmailOtpSent(true);
+        setSuccess('Verification code sent to your email!');
+        // Auto-hide success message after 2 seconds
         setTimeout(() => {
-          router.push('/login');
-        }, 3000);
+          setSuccess(null);
+        }, 2000);
+        // Store temp password in sessionStorage (will be updated on final submission)
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('temp_email_password', tempPassword);
+          sessionStorage.setItem('pending_email', email);
+        }
       } else {
-        setError(response.error || 'Registration failed');
+        setEmailVerifyError(registerResp.error || 'Failed to create account');
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      setEmailVerifyError('Failed to send verification code');
     } finally {
-      setIsSubmitting(false);
+      setIsSendingEmailOtp(false);
     }
+  };
+
+  // Handle email OTP verify
+  const handleVerifyEmail = async () => {
+    if (!emailOtp || emailOtp.length !== 6) {
+      setEmailVerifyError('Please enter a valid 6-digit code');
+      return;
+    }
+    
+    try {
+      setIsVerifyingEmail(true);
+      setEmailVerifyError(null);
+      const resp = await AuthService.verifyEmail(email, emailOtp);
+      if (resp.success) {
+        setEmailVerified(true);
+        setEmailVerifyError(null);
+        setSuccess('Email verified successfully!');
+        // Auto-hide success message after 2 seconds
+        setTimeout(() => {
+          setSuccess(null);
+        }, 2000);
+        // Store verification status in sessionStorage
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('email_verified', 'true');
+          sessionStorage.setItem('verified_email', email);
+        }
+      } else {
+        setEmailVerifyError(resp.error || 'Invalid verification code');
+      }
+    } catch (err) {
+      setEmailVerifyError('Verification failed');
+    } finally {
+      setIsVerifyingEmail(false);
+    }
+  };
+
+  // Handle phone OTP send - Check if exists first, then create account or resend OTP
+  const handleSendPhoneOtp = async () => {
+    if (!phoneNumber || phoneNumber.trim() === '') {
+      setPhoneVerifyError('Please enter a phone number');
+      return;
+    }
+    
+    const phoneDigits = phoneNumber.replace(/\D/g, '');
+    if (!/^[\+]?[1-9]\d{9,14}$/.test(phoneDigits)) {
+      setPhoneVerifyError('Please enter a valid phone number');
+      return;
+    }
+    
+    // Format phone number to E.164 format
+    let formattedPhone = phoneNumber.trim().replace(/[\s\-\(\)\.]/g, '');
+    if (!formattedPhone.startsWith('+')) {
+      if (formattedPhone.length === 10) {
+        formattedPhone = '+91' + formattedPhone;
+      } else if (formattedPhone.length === 12 && formattedPhone.startsWith('91')) {
+        formattedPhone = '+' + formattedPhone;
+      } else {
+        formattedPhone = '+' + formattedPhone;
+      }
+    }
+    
+    try {
+      setIsSendingPhoneOtp(true);
+      setPhoneVerifyError(null);
+      
+      // First, check if phone already exists
+      const checkResp = await AuthService.checkUserExists(undefined, phoneNumber);
+      
+      if (checkResp.exists) {
+        // User exists - try to resend OTP (this will work if user is unverified)
+        // If user is already verified, resendOtp will fail and we'll show appropriate error
+        const resendResp = await AuthService.resendOtp(formattedPhone);
+        if (resendResp.success) {
+          setPhoneOtpSent(true);
+          setSuccess('Verification code resent to your phone!');
+          setTimeout(() => {
+            setSuccess(null);
+          }, 2000);
+        } else {
+          // If resend fails, user might be already verified
+          // Check if error indicates user is already confirmed
+          if (resendResp.error?.toLowerCase().includes('already') || 
+              resendResp.error?.toLowerCase().includes('confirmed') ||
+              resendResp.error?.toLowerCase().includes('verified')) {
+            setPhoneVerifyError('Phone number already registered and verified, choose different phone number');
+          } else {
+            setPhoneVerifyError(resendResp.error || 'Failed to resend verification code');
+          }
+        }
+        setIsSendingPhoneOtp(false);
+        return;
+      }
+      
+      // User doesn't exist, create account with temporary password to send verification code
+      // Generate a temporary password (will be updated later during final registration)
+      const tempPassword = `Temp${Math.random().toString(36).slice(-12)}!@#`;
+      const tempFirstName = phoneNumber.replace(/\D/g, '').slice(-4); // Use last 4 digits as temp name
+      const tempLastName = 'User';
+      
+      // Create the account (this will send verification code automatically)
+      const registerResp = await AuthService.register({
+        firstName: tempFirstName,
+        lastName: tempLastName,
+        email: '', // Phone-only registration
+        phoneNumber: formattedPhone,
+        password: tempPassword,
+      });
+      
+      if (registerResp.success) {
+        // Account created, OTP should be sent automatically
+        setPhoneOtpSent(true);
+        setSuccess('Verification code sent to your phone!');
+        // Auto-hide success message after 2 seconds
+        setTimeout(() => {
+          setSuccess(null);
+        }, 2000);
+        // Store temp password in sessionStorage
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('temp_phone_password', tempPassword);
+          sessionStorage.setItem('pending_phone', formattedPhone);
+        }
+      } else {
+        setPhoneVerifyError(registerResp.error || 'Failed to create account');
+      }
+    } catch (err) {
+      setPhoneVerifyError('Failed to send verification code');
+    } finally {
+      setIsSendingPhoneOtp(false);
+    }
+  };
+
+  // Handle phone OTP verify
+  const handleVerifyPhone = async () => {
+    if (!phoneOtp || phoneOtp.length !== 6) {
+      setPhoneVerifyError('Please enter a valid 6-digit code');
+      return;
+    }
+    
+    if (!phoneNumber) {
+      setPhoneVerifyError('Phone number is required');
+      return;
+    }
+    
+    try {
+      setIsVerifyingPhone(true);
+      setPhoneVerifyError(null);
+      const resp = await AuthService.verifyPhone(phoneNumber, phoneOtp);
+      if (resp.success) {
+        setPhoneVerified(true);
+        setPhoneVerifyError(null);
+        setSuccess('Phone number verified successfully!');
+        // Auto-hide success message after 2 seconds
+        setTimeout(() => {
+          setSuccess(null);
+        }, 2000);
+        // Store verification status in sessionStorage
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('phone_verified', 'true');
+          sessionStorage.setItem('verified_phone', phoneNumber);
+        }
+      } else {
+        setPhoneVerifyError(resp.error || 'Invalid verification code');
+      }
+    } catch (err) {
+      setPhoneVerifyError('Verification failed');
+    } finally {
+      setIsVerifyingPhone(false);
+    }
+  };
+
+  const onSubmit = async (data: RegisterFormData) => {
+    // Check sessionStorage for verified email
+    let isEmailVerifiedInStorage = false;
+    let verifiedEmailFromStorage = '';
+    if (typeof window !== 'undefined') {
+      isEmailVerifiedInStorage = sessionStorage.getItem('email_verified') === 'true';
+      verifiedEmailFromStorage = sessionStorage.getItem('verified_email') || '';
+    }
+    
+    // Check if email is verified (either in state or sessionStorage)
+    const emailIsVerified = emailVerified || (isEmailVerifiedInStorage && verifiedEmailFromStorage === data.email);
+    
+    // Check if phone is verified (if provided)
+    let isPhoneVerifiedInStorage = false;
+    let verifiedPhoneFromStorage = '';
+    if (typeof window !== 'undefined' && data.phoneNumber) {
+      isPhoneVerifiedInStorage = sessionStorage.getItem('phone_verified') === 'true';
+      verifiedPhoneFromStorage = sessionStorage.getItem('verified_phone') || '';
+    }
+    
+    const phoneIsVerified = phoneVerified || (isPhoneVerifiedInStorage && verifiedPhoneFromStorage === data.phoneNumber);
+    
+    // At least one of email or phone must be verified
+    if (!emailIsVerified && !phoneIsVerified) {
+      setError('Please verify your email address or phone number before completing registration');
+      return;
+    }
+    
+    // If email is provided but not verified
+    if (data.email && data.email.trim() !== '' && !emailIsVerified) {
+      setError('Please verify your email address before completing registration');
+      return;
+    }
+    
+    // If phone is provided but not verified
+    if (data.phoneNumber && data.phoneNumber.trim() !== '' && !phoneIsVerified) {
+      setError('Please verify your phone number before completing registration');
+      return;
+    }
+    
+    // Account is already created during email/phone verification (with temp password)
+    // Since account is already created and verified, just redirect to login
+    setSuccess('Registration complete! Redirecting to login...');
+    // Auto-hide success message after 2 seconds
+    setTimeout(() => {
+      setSuccess(null);
+    }, 2000);
+    
+    // Clear sessionStorage
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('email_verified');
+      sessionStorage.removeItem('verified_email');
+      sessionStorage.removeItem('phone_verified');
+      sessionStorage.removeItem('verified_phone');
+      sessionStorage.removeItem('temp_email_password');
+      sessionStorage.removeItem('pending_email');
+      sessionStorage.removeItem('temp_phone_password');
+      sessionStorage.removeItem('pending_phone');
+    }
+    
+    setTimeout(() => {
+      router.push('/login?registered=1');
+    }, 1500);
   };
 
   const handleOAuthLogin = async (provider: string) => {
@@ -247,28 +571,190 @@ export default function RegisterForm() {
                     </div>
                   </div>
 
+                  {/* Email Field - Required */}
                   <div className="group">
                     <label htmlFor="email" className="block text-blue-100/90 font-medium mb-1 text-sm">
-                      Email or Phone Number
+                      Email <span className="text-red-400">*</span>
                     </label>
-                    <input
-                      {...register('email')}
-                      type="text"
-                      id="email"
-                      autoComplete="email"
-                      className={cn(
-                        'w-full bg-slate-700/40 backdrop-blur-xl border rounded-xl px-4 py-2.5 text-white placeholder-blue-100/40 focus:outline-none focus:ring-2 transition-all duration-300 text-sm hover:bg-slate-700/50',
-                        errors.email
-                          ? 'border-red-400/50 focus:border-red-400 focus:ring-red-400/20'
-                          : 'border-slate-600/30 focus:border-indigo-400/60 focus:ring-indigo-400/20 group-hover:border-slate-500/50'
+                    <div className="relative">
+                      <input
+                        {...register('email')}
+                        type="email"
+                        id="email"
+                        autoComplete="email"
+                        disabled={emailVerified}
+                        className={cn(
+                          'w-full bg-slate-700/40 backdrop-blur-xl border rounded-xl px-4 py-2.5 pr-24 text-white placeholder-blue-100/40 focus:outline-none focus:ring-2 transition-all duration-300 text-sm hover:bg-slate-700/50',
+                          errors.email
+                            ? 'border-red-400/50 focus:border-red-400 focus:ring-red-400/20'
+                            : emailVerified
+                            ? 'border-green-400/50 bg-green-500/10'
+                            : 'border-slate-600/30 focus:border-indigo-400/60 focus:ring-indigo-400/20 group-hover:border-slate-500/50',
+                          emailVerified && 'opacity-75'
+                        )}
+                        placeholder="email@example.com"
+                      />
+                      {/* Verify Button Inside Email Field */}
+                      {email && !errors.email && !emailVerified && !emailOtpSent && (
+                        <button
+                          type="button"
+                          onClick={handleSendEmailOtp}
+                          disabled={isSendingEmailOtp}
+                          className={cn(
+                            "absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-indigo-500/50",
+                            !isSendingEmailOtp && "hover:scale-105 active:scale-95"
+                          )}
+                          title="Verify email"
+                        >
+                          {isSendingEmailOtp ? '...' : 'Verify'}
+                        </button>
                       )}
-                      placeholder="email@example.com or +919876543210"
-                    />
+                      {emailVerified && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <CheckCircle2 className="w-5 h-5 text-green-400" />
+                        </div>
+                      )}
+                    </div>
                     {errors.email && <p className="mt-1 text-sm text-red-400">{errors.email.message}</p>}
-                    {!errors.email && (
+                    {emailVerifyError && <p className="mt-1 text-sm text-red-400">{emailVerifyError}</p>}
+                    
+                    {/* Email OTP Input - Show below field */}
+                    {email && !errors.email && emailOtpSent && !emailVerified && (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={emailOtp}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                              setEmailOtp(value);
+                              setEmailVerifyError(null);
+                            }}
+                            placeholder="Enter 6-digit code"
+                            className="flex-1 bg-slate-700/40 backdrop-blur-xl border border-slate-600/30 rounded-xl px-4 py-2 text-white placeholder-blue-100/40 focus:outline-none focus:ring-2 focus:border-indigo-400/60 text-sm text-center tracking-widest"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyEmail}
+                            disabled={isVerifyingEmail || emailOtp.length !== 6}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {isVerifyingEmail ? 'Verifying...' : 'Verify'}
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSendEmailOtp}
+                          disabled={isSendingEmailOtp}
+                          className="text-xs text-blue-300 hover:text-blue-200 underline disabled:opacity-50"
+                        >
+                          {isSendingEmailOtp ? 'Sending...' : 'Resend code'}
+                        </button>
+                      </div>
+                    )}
+                    {emailVerified && (
+                      <div className="mt-2 flex items-center gap-2 text-sm text-green-400">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Email verified</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Phone Number Field - Optional */}
+                  <div className="group">
+                    <label htmlFor="phoneNumber" className="block text-blue-100/90 font-medium mb-1 text-sm">
+                      Phone Number <span className="text-blue-100/50 text-xs">(Optional)</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        {...register('phoneNumber')}
+                        type="text"
+                        id="phoneNumber"
+                        autoComplete="tel"
+                        disabled={phoneVerified && phoneNumber ? true : false}
+                        className={cn(
+                          'w-full bg-slate-700/40 backdrop-blur-xl border rounded-xl px-4 py-2.5 pr-24 text-white placeholder-blue-100/40 focus:outline-none focus:ring-2 transition-all duration-300 text-sm hover:bg-slate-700/50',
+                          errors.phoneNumber
+                            ? 'border-red-400/50 focus:border-red-400 focus:ring-red-400/20'
+                            : phoneVerified && phoneNumber
+                            ? 'border-green-400/50 bg-green-500/10'
+                            : 'border-slate-600/30 focus:border-indigo-400/60 focus:ring-indigo-400/20 group-hover:border-slate-500/50',
+                          phoneVerified && phoneNumber && 'opacity-75'
+                        )}
+                        placeholder="+919876543210"
+                      />
+                      {/* Verify Button Inside Phone Field */}
+                      {phoneNumber && phoneNumber.trim() !== '' && !errors.phoneNumber && !phoneVerified && !phoneOtpSent && (
+                        <button
+                          type="button"
+                          onClick={handleSendPhoneOtp}
+                          disabled={isSendingPhoneOtp}
+                          className={cn(
+                            "absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-indigo-500/50",
+                            !isSendingPhoneOtp && "hover:scale-105 active:scale-95"
+                          )}
+                          title="Verify phone number"
+                        >
+                          {isSendingPhoneOtp ? '...' : 'Verify'}
+                        </button>
+                      )}
+                      {phoneVerified && phoneNumber && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <CheckCircle2 className="w-5 h-5 text-green-400" />
+                        </div>
+                      )}
+                    </div>
+                    {errors.phoneNumber && <p className="mt-1 text-sm text-red-400">{errors.phoneNumber.message}</p>}
+                    {phoneVerifyError && <p className="mt-1 text-sm text-red-400">{phoneVerifyError}</p>}
+                    {!errors.phoneNumber && !phoneVerifyError && (
                       <p className="mt-1 text-xs text-blue-100/50">
-                        Phone numbers: Use 10+ digits (e.g., 9876543210 or +919876543210)
+                        Phone format: 10+ digits (e.g., 9876543210 or +919876543210)
                       </p>
+                    )}
+                    
+                    {/* Phone OTP Input - Show below field */}
+                    {phoneNumber && phoneNumber.trim() !== '' && !errors.phoneNumber && phoneOtpSent && !phoneVerified && (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={phoneOtp}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                              setPhoneOtp(value);
+                              setPhoneVerifyError(null);
+                            }}
+                            placeholder="Enter 6-digit code"
+                            className="flex-1 bg-slate-700/40 backdrop-blur-xl border border-slate-600/30 rounded-xl px-4 py-2 text-white placeholder-blue-100/40 focus:outline-none focus:ring-2 focus:border-indigo-400/60 text-sm text-center tracking-widest"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyPhone}
+                            disabled={isVerifyingPhone || phoneOtp.length !== 6}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {isVerifyingPhone ? 'Verifying...' : 'Verify'}
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSendPhoneOtp}
+                          disabled={isSendingPhoneOtp}
+                          className="text-xs text-blue-300 hover:text-blue-200 underline disabled:opacity-50"
+                        >
+                          {isSendingPhoneOtp ? 'Sending...' : 'Resend code'}
+                        </button>
+                      </div>
+                    )}
+                    {phoneVerified && phoneNumber && (
+                      <div className="mt-2 flex items-center gap-2 text-sm text-green-400">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Phone verified</span>
+                      </div>
                     )}
                   </div>
 
@@ -372,12 +858,19 @@ export default function RegisterForm() {
 
                   <button
                     type="submit"
-                    disabled={isSubmitting}
-                    className="group btn-primary mt-3"
+                    disabled={isSubmitting || !emailVerified}
+                    className={cn(
+                      "group btn-primary mt-3",
+                      (!emailVerified || isSubmitting) && "opacity-50 cursor-not-allowed"
+                    )}
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-indigo-400/20 to-blue-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <span className="relative z-10">
-                      {isSubmitting ? 'Creating Account...' : 'Create Account'}
+                      {isSubmitting 
+                        ? 'Completing Registration...' 
+                        : emailVerified 
+                        ? 'Complete Registration' 
+                        : 'Verify Email to Continue'}
                     </span>
                   </button>
 

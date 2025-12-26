@@ -34,7 +34,9 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'",
+            value: process.env.NODE_ENV === 'development'
+              ? "default-src 'self' http://localhost:* https: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http://localhost:* https: data: blob: ws: wss:;"
+              : "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https: data: blob: ws: wss:;",
           },
         ],
       },

@@ -89,24 +89,26 @@ export class AuthService {
   static async register(data: {
     firstName: string;
     lastName: string;
-    email: string;
+    email?: string;
+    phoneNumber?: string;
     password: string;
   }): Promise<AuthResponse> {
     try {
-      // Detect if the email field contains a phone number
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const isEmail = emailRegex.test(data.email.trim());
-      const isPhone = !isEmail;
-      
       // Prepare the request body
       const requestBody: any = {
         username: `${data.firstName} ${data.lastName}`,
         password: data.password,
       };
       
-      if (isPhone) {
+      // Add email if provided
+      if (data.email && data.email.trim() !== '') {
+        requestBody.email = data.email;
+      }
+      
+      // Add phone number if provided
+      if (data.phoneNumber && data.phoneNumber.trim() !== '') {
         // Format phone number to E.164 format
-        let phoneNumber = data.email.trim().replace(/[\s\-\(\)\.]/g, '');
+        let phoneNumber = data.phoneNumber.trim().replace(/[\s\-\(\)\.]/g, '');
         
         // Add country code if missing
         if (!phoneNumber.startsWith('+')) {
@@ -125,11 +127,20 @@ export class AuthService {
         }
         
         requestBody.phone_number = phoneNumber;
-        console.log('[Auth] Registering with phone number:', phoneNumber);
-      } else {
-        requestBody.email = data.email;
-        console.log('[Auth] Registering with email:', data.email);
       }
+      
+      // At least one of email or phone must be provided
+      if (!requestBody.email && !requestBody.phone_number) {
+        return {
+          success: false,
+          error: 'Email or phone number is required',
+        };
+      }
+      
+      console.log('[Auth] Registering:', { 
+        email: requestBody.email || 'none', 
+        phone: requestBody.phone_number || 'none' 
+      });
 
       const response = await fetch(`${API_BASE_URL}/auth/signup`, {
         method: 'POST',
@@ -181,6 +192,171 @@ export class AuthService {
       return {
         success: false,
         error: 'Network error during OAuth callback',
+      };
+    }
+  }
+
+  static async verifyEmail(email: string, code: string, username?: string): Promise<AuthResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, code, username }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data?.error || 'Failed to verify email' };
+      }
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Network error. Please try again.',
+      };
+    }
+  }
+
+  static async resendEmailVerification(email: string, username?: string): Promise<AuthResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/resend-email-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, username }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data?.error || 'Failed to resend verification code' };
+      }
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Network error. Please try again.',
+      };
+    }
+  }
+
+  static async forgotPassword(email?: string, phoneNumber?: string, username?: string): Promise<AuthResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, phoneNumber, username }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data?.error || 'Failed to send password reset code' };
+      }
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Network error. Please try again.',
+      };
+    }
+  }
+
+  static async confirmForgotPassword(
+    code: string,
+    newPassword: string,
+    email?: string,
+    phoneNumber?: string,
+    username?: string
+  ): Promise<AuthResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/confirm-forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, phoneNumber, code, newPassword, username }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data?.error || 'Failed to reset password' };
+      }
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Network error. Please try again.',
+      };
+    }
+  }
+
+  static async resendOtp(phoneNumber: string, username?: string): Promise<AuthResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/phone/resend-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phoneNumber, username }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data?.error || 'Failed to resend OTP' };
+      }
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Network error. Please try again.',
+      };
+    }
+  }
+
+  static async verifyPhone(phoneNumber: string, code: string, username?: string): Promise<AuthResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/phone/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phoneNumber, code, username }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data?.error || 'Failed to verify phone number' };
+      }
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Network error. Please try again.',
+      };
+    }
+  }
+
+  static async checkUserExists(email?: string, phoneNumber?: string): Promise<{ success: boolean; exists: boolean; type?: string; message?: string; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/check-user-exists`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, phoneNumber }),
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        exists: false,
+        error: 'Network error. Please try again.',
       };
     }
   }
@@ -265,35 +441,52 @@ export class AuthService {
     accessToken?: string;
     idToken?: string;
     refreshToken?: string;
-  }): void {
+  }, rememberMe: boolean = true): void {
     if (typeof window !== 'undefined') {
+      // Choose storage based on rememberMe preference
+      // rememberMe = true: localStorage (persists across browser sessions)
+      // rememberMe = false: sessionStorage (cleared when browser closes)
+      const storage = rememberMe ? localStorage : sessionStorage;
+      
       // Store tokens with consistent naming for cross-app compatibility
       if (tokens.accessToken) {
-        localStorage.setItem('accessToken', tokens.accessToken);
-        localStorage.setItem('access_token', tokens.accessToken); // For projectmngnt compatibility
+        storage.setItem('accessToken', tokens.accessToken);
+        storage.setItem('access_token', tokens.accessToken); // For projectmngnt compatibility
       }
       if (tokens.idToken) {
-        localStorage.setItem('idToken', tokens.idToken);
-        localStorage.setItem('id_token', tokens.idToken); // For projectmngnt compatibility
+        storage.setItem('idToken', tokens.idToken);
+        storage.setItem('id_token', tokens.idToken); // For projectmngnt compatibility
       }
       if (tokens.refreshToken) {
-        localStorage.setItem('refreshToken', tokens.refreshToken);
-        localStorage.setItem('refresh_token', tokens.refreshToken); // For projectmngnt compatibility
+        storage.setItem('refreshToken', tokens.refreshToken);
+        storage.setItem('refresh_token', tokens.refreshToken); // For projectmngnt compatibility
       }
+      
+      // Store rememberMe preference
+      storage.setItem('rememberMe', rememberMe.toString());
       
       // Also set cookies for cross-domain SSO (client-side fallback)
       const domain = '.brmh.in';
       const secure = window.location.protocol === 'https:';
       const sameSite = 'None';
       
+      // Set cookie expiration based on rememberMe
+      // rememberMe = true: 30 days for refresh token, 1 hour for access/id tokens
+      // rememberMe = false: Session cookies (no max-age, cleared on browser close)
+      const accessTokenMaxAge = rememberMe ? 3600 : undefined; // 1 hour or session
+      const refreshTokenMaxAge = rememberMe ? 2592000 : undefined; // 30 days or session
+      
       if (tokens.accessToken) {
-        document.cookie = `access_token=${tokens.accessToken}; domain=${domain}; path=/; ${secure ? 'secure;' : ''} samesite=${sameSite}; max-age=3600`;
+        const maxAgePart = accessTokenMaxAge ? `max-age=${accessTokenMaxAge};` : '';
+        document.cookie = `access_token=${tokens.accessToken}; domain=${domain}; path=/; ${secure ? 'secure;' : ''} samesite=${sameSite}; ${maxAgePart}`;
       }
       if (tokens.idToken) {
-        document.cookie = `id_token=${tokens.idToken}; domain=${domain}; path=/; ${secure ? 'secure;' : ''} samesite=${sameSite}; max-age=3600`;
+        const maxAgePart = accessTokenMaxAge ? `max-age=${accessTokenMaxAge};` : '';
+        document.cookie = `id_token=${tokens.idToken}; domain=${domain}; path=/; ${secure ? 'secure;' : ''} samesite=${sameSite}; ${maxAgePart}`;
       }
       if (tokens.refreshToken) {
-        document.cookie = `refresh_token=${tokens.refreshToken}; domain=${domain}; path=/; ${secure ? 'secure;' : ''} samesite=${sameSite}; max-age=2592000`;
+        const maxAgePart = refreshTokenMaxAge ? `max-age=${refreshTokenMaxAge};` : '';
+        document.cookie = `refresh_token=${tokens.refreshToken}; domain=${domain}; path=/; ${secure ? 'secure;' : ''} samesite=${sameSite}; ${maxAgePart}`;
       }
       
       // Also extract user info from ID token and store it
@@ -319,20 +512,26 @@ export class AuthService {
 
   static clearTokens(): void {
     if (typeof window !== 'undefined') {
-      // Clear all token formats
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('idToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('id_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user_id');
-      localStorage.removeItem('user_email');
-      localStorage.removeItem('user_name');
-      localStorage.removeItem('oauthState');
-      localStorage.removeItem('oauthProvider');
-      localStorage.removeItem('cognitoState');
-      localStorage.removeItem('cognitoNonce');
+      // Clear all token formats from both localStorage and sessionStorage
+      const tokenKeys = [
+        'accessToken', 'idToken', 'refreshToken',
+        'access_token', 'id_token', 'refresh_token',
+        'user_id', 'user_email', 'user_name',
+        'rememberMe',
+        'oauthState', 'oauthProvider',
+        'cognitoState', 'cognitoNonce'
+      ];
+      
+      tokenKeys.forEach(key => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
+      
+      // Clear cookies
+      const domain = '.brmh.in';
+      document.cookie = `access_token=; domain=${domain}; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      document.cookie = `id_token=; domain=${domain}; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      document.cookie = `refresh_token=; domain=${domain}; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
     }
   }
 
@@ -345,10 +544,19 @@ export class AuthService {
       return {};
     }
 
+    // Check rememberMe preference to determine which storage to use
+    const rememberMe = localStorage.getItem('rememberMe') === 'true' || sessionStorage.getItem('rememberMe') === 'true';
+    const storage = rememberMe ? localStorage : sessionStorage;
+    
+    // Fallback: if not found in preferred storage, check the other one
+    const getToken = (key: string) => {
+      return storage.getItem(key) || (rememberMe ? sessionStorage.getItem(key) : localStorage.getItem(key)) || undefined;
+    };
+    
     return {
-      accessToken: localStorage.getItem('accessToken') || undefined,
-      idToken: localStorage.getItem('idToken') || undefined,
-      refreshToken: localStorage.getItem('refreshToken') || undefined,
+      accessToken: getToken('accessToken'),
+      idToken: getToken('idToken'),
+      refreshToken: getToken('refreshToken'),
     };
   }
 

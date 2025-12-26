@@ -15,6 +15,7 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState(false);
   const router = useRouter();
 
   const {
@@ -37,11 +38,13 @@ export default function LoginForm() {
           accessToken: response.result.accessToken?.jwtToken,
           idToken: response.result.idToken?.jwtToken,
           refreshToken: response.result.refreshToken?.token,
-        });
+        }, rememberMe);
         
-        // Get redirect URL from query params or default to app.brmh.in
+        // Get redirect URL from query params or default to main frontend
         const searchParams = new URLSearchParams(window.location.search);
-        let nextUrl = searchParams.get('next') || 'https://app.brmh.in/';
+        // Priority: query param > env variable > default localhost:3001 (main frontend)
+        const MAIN_FRONTEND_URL = process.env.NEXT_PUBLIC_MAIN_FRONTEND_URL || 'http://localhost:3001';
+        let nextUrl = searchParams.get('next') || `${MAIN_FRONTEND_URL}/dashboard`;
         
         // For localhost or cross-domain redirects, pass tokens in URL hash
         const isLocalhostTarget = nextUrl.includes('localhost') || nextUrl.includes('127.0.0.1');
@@ -73,7 +76,14 @@ export default function LoginForm() {
           window.location.href = nextUrl;
         }, 300);
       } else {
-        setError(response.error || 'Login failed');
+        const message = response.error || 'Login failed';
+        // If account is not confirmed, send user to verification page
+        if (message.toLowerCase().includes('account not confirmed')) {
+          const emailParam = encodeURIComponent(data.email);
+          router.push(`/verify-email?email=${emailParam}`);
+          return;
+        }
+        setError(message);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -261,6 +271,8 @@ export default function LoginForm() {
                     <label className="flex items-center space-x-3 cursor-pointer group">
                       <input
                         type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
                         className="w-4 h-4 rounded border-slate-600/50 bg-slate-700/50 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-0 transition-all duration-200"
                       />
                       <span className="text-blue-100/70 text-sm group-hover:text-blue-100/90 transition-colors">
@@ -316,7 +328,7 @@ export default function LoginForm() {
                   <div className="space-y-4">
                     <div className="group feature-card">
                       <div className="feature-icon bg-gradient-to-r from-green-500/20 to-emerald-500/20">
-                        <div className="w-4 h-4 bg-green-400 rounded-lg"></div>
+                        <div className="w-5 h-5 bg-green-400 rounded-full"></div>
                       </div>
                       <div>
                         <h3 className="font-semibold mb-2 text-lg">End-to-End Encryption</h3>
@@ -328,7 +340,7 @@ export default function LoginForm() {
 
                     <div className="group feature-card">
                       <div className="feature-icon bg-gradient-to-r from-blue-500/20 to-indigo-500/20">
-                        <div className="w-4 h-4 bg-blue-400 rounded-lg"></div>
+                        <div className="w-5 h-5 bg-blue-400 rounded-full"></div>
                       </div>
                       <div>
                         <h3 className="font-semibold mb-2 text-lg">Multi-Factor Authentication</h3>
@@ -340,7 +352,7 @@ export default function LoginForm() {
 
                     <div className="group feature-card">
                       <div className="feature-icon bg-gradient-to-r from-purple-500/20 to-pink-500/20">
-                        <div className="w-4 h-4 bg-purple-400 rounded-lg"></div>
+                        <div className="w-5 h-5 bg-purple-400 rounded-full"></div>
                       </div>
                       <div>
                         <h3 className="font-semibold mb-2 text-lg">Zero-Trust Security</h3>
