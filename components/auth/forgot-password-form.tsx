@@ -86,7 +86,7 @@ export default function ForgotPasswordForm() {
               Forgot Password?
             </h1>
             <p className="text-blue-100/70 text-sm">
-              Enter your email address or phone number and we'll send you a code to reset your password.
+              Enter your email address or phone number and we&apos;ll send you a code to reset your password.
             </p>
           </div>
 
