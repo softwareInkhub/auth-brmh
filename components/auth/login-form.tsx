@@ -46,27 +46,22 @@ export default function LoginForm() {
         const MAIN_FRONTEND_URL = process.env.NEXT_PUBLIC_MAIN_FRONTEND_URL || 'http://localhost:3001';
         let nextUrl = searchParams.get('next') || `${MAIN_FRONTEND_URL}/dashboard`;
         
-        // For localhost or cross-domain redirects, pass tokens in URL hash
-        const isLocalhostTarget = nextUrl.includes('localhost') || nextUrl.includes('127.0.0.1');
-        const isCrossDomain = !nextUrl.includes('brmh.in');
+        // Always pass tokens in URL hash as backup, even for same-domain
+        // This ensures tokens are available even if cookies aren't immediately accessible
+        const tokens = {
+          access_token: response.result.accessToken?.jwtToken,
+          id_token: response.result.idToken?.jwtToken,
+          refresh_token: response.result.refreshToken?.token,
+        };
         
-        if (isLocalhostTarget || isCrossDomain) {
-          // Pass tokens in URL hash for cross-domain transfer
-          const tokens = {
-            access_token: response.result.accessToken?.jwtToken,
-            id_token: response.result.idToken?.jwtToken,
-            refresh_token: response.result.refreshToken?.token,
-          };
-          
-          const hashParams = new URLSearchParams();
-          if (tokens.access_token) hashParams.set('access_token', tokens.access_token);
-          if (tokens.id_token) hashParams.set('id_token', tokens.id_token);
-          if (tokens.refresh_token) hashParams.set('refresh_token', tokens.refresh_token);
-          
-          // Append tokens to target URL as hash
-          nextUrl = `${nextUrl}#${hashParams.toString()}`;
-          console.log('[Auth] Cross-domain redirect, tokens added to URL hash');
-        }
+        const hashParams = new URLSearchParams();
+        if (tokens.access_token) hashParams.set('access_token', tokens.access_token);
+        if (tokens.id_token) hashParams.set('id_token', tokens.id_token);
+        if (tokens.refresh_token) hashParams.set('refresh_token', tokens.refresh_token);
+        
+        // Append tokens to target URL as hash (works for both same-domain and cross-domain)
+        nextUrl = `${nextUrl}#${hashParams.toString()}`;
+        console.log('[Auth] Tokens added to URL hash for reliable token transfer');
         
         // Redirect to the target URL (cookies will be shared across subdomains for brmh.in domains)
         console.log('[Auth] Login successful, redirecting to:', nextUrl.split('#')[0]); // Log without tokens
