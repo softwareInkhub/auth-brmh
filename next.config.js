@@ -2,6 +2,8 @@
 const nextConfig = {
   env: {
     API_BASE_URL: process.env.API_BASE_URL || 'https://brmh.in',
+    // IMPORTANT: NEXT_PUBLIC_ prefix is required for client-side access
+    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || 'https://brmh.in',
   },
   async rewrites() {
     return [

@@ -1,4 +1,7 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://brmh.in';
+// Ensure API_BASE_URL is never empty - use fallback if env var is missing or empty
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.trim()) 
+  ? process.env.NEXT_PUBLIC_API_BASE_URL.trim() 
+  : 'https://brmh.in';
 
 // Cognito Configuration - Replace with your actual values
 const COGNITO_CONFIG = {
